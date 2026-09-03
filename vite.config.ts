@@ -1,25 +1,19 @@
-import { defineConfig, loadEnv } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
-// https://vite.dev/config/
-export default defineConfig(async ({ mode }) => {
-  const plugins = [react(), tailwindcss()];
-  try {
-    // @ts-ignore
-    const m = await import('./.vite-source-tags.js');
-    plugins.push(m.sourceTags());
-  } catch {}
-
-  const env = loadEnv(mode, process.cwd(), ['VITE_', 'NEXT_PUBLIC_']);
-  const processEnvDefines: Record<string, string> = {};
-  for (const [key, value] of Object.entries(env)) {
-    processEnvDefines[`process.env.${key}`] = JSON.stringify(value);
-  }
-
-  return {
-    plugins,
-    envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
-    define: processEnvDefines,
-  };
-})
+// Relative base keeps the built bundle portable on GitHub Pages
+// (https://<org>.github.io/<repo>/) as well as local preview servers.
+// The allowed-hosts block permits the platform's *.e2b.app live preview proxy.
+export default defineConfig({
+  base: "./",
+  plugins: [react(), tailwindcss()],
+  server: {
+    host: "0.0.0.0",
+    allowedHosts: [".e2b.app", "localhost", "127.0.0.1"],
+  },
+  preview: {
+    host: "0.0.0.0",
+    allowedHosts: [".e2b.app", "localhost", "127.0.0.1"],
+  },
+});
