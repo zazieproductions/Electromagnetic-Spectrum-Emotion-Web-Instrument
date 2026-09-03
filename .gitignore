@@ -7,10 +7,17 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies and build output
 node_modules
 dist
 dist-ssr
 *.local
+
+# Test output
+coverage
+playwright-report
+test-results
+.vite
 
 # Editor directories and files
 .vscode/*
@@ -22,5 +29,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.vite-source-tags.js
+
+# Local / generated deployment metadata
 .vercel
+.vite-source-tags.js
