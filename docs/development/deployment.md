@@ -15,7 +15,17 @@ The live version is deployed with GitHub Pages using Actions.
 - Uploads `dist/` as a Pages artifact using `actions/upload-pages-artifact`.
 - Deploys with `actions/deploy-pages`.
 
-The workflow requires the repository Pages source to be set to **GitHub Actions**. This is configured by enabling Pages through the repository settings (or the API). Once enabled, manual dispatch works from any branch:
+## Enabling Pages
+
+GitHub Pages must be enabled by a repository maintainer before the workflow can deploy:
+
+1. Open **Repository Settings → Pages → Build and deployment**.
+2. Set **Source** to **GitHub Actions**.
+3. Confirm that the repository has `actions: read` and `pages: write` (the workflow declares these itself).
+
+The `actions/configure-pages@v5` step with `enablement: true` will attempt to enable the Pages site automatically when the runner token has admin permission. Tokens scoped to a non-admin integration (for example a build bot used to generate screenshots) may receive `Resource not accessible by integration`; in that case only a repository owner can enable Pages.
+
+Once Pages is enabled, manual dispatch works from any branch:
 
 ```bash
 gh workflow run deploy-pages.yml --ref <branch>

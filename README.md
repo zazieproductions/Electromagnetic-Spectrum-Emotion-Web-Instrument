@@ -32,10 +32,12 @@ It is also an instrument project: not a data visualisation with sound attached, 
 
 ## Live demo
 
-The production build is deployed to GitHub Pages from the `main` branch (and can be deployed from any branch using the `Deploy GitHub Pages` action).
+The deployment path is configured for GitHub Pages; the production build deploys automatically from `main` once Pages is enabled for the repository.
 
-- **Deployed site:** <https://zazieproductions.github.io/Electromagnetic-Spectrum-Emotion-Web-Instrument/>
+- **Intended deployed site:** <https://zazieproductions.github.io/Electromagnetic-Spectrum-Emotion-Web-Instrument/>
 - **Deployment workflow:** [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)
+
+> **One-time setup required by the repository owner:** GitHub must be told to serve the site from Actions. Open **Repository Settings → Pages → Build and deployment → Source → GitHub Actions**, then enable Pages (or run the workflow once as an admin). After that, `npm run build` output is uploaded and deployed by the `Deploy GitHub Pages` workflow whenever `main` changes. Until that setting is enabled, the URL above is not yet live.
 
 ## Features
 
