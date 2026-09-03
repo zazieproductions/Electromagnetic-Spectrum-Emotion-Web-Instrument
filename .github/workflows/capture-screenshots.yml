@@ -2,6 +2,15 @@ name: Capture Screenshots
 
 on:
   workflow_dispatch:
+  push:
+    branches: ["main", "arena/**"]
+    paths:
+      - "src/**"
+      - "README.md"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/capture-screenshots.yml"
 
 permissions:
   contents: write
