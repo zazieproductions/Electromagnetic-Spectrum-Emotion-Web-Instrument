@@ -62,11 +62,15 @@ async function main() {
       ["run", "dev", "--", "--host", "127.0.0.1", "--port", String(PORT), "--strictPort"],
       {
         cwd: ROOT,
-        stdio: ["ignore", "pipe", "pipe"],
+        detached: process.platform !== "win32",
+        stdio: "ignore",
       }
     );
-    server.stdout.on("data", () => {});
-    server.stderr.on("data", () => {});
+    server.on("error", (error) => {
+      throw error;
+    });
+    server.unref();
+    console.log(`Starting dev server on ${BASE_URL}…`);
     await waitForServer(BASE_URL);
   }
 
@@ -75,19 +79,23 @@ async function main() {
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 1,
   });
+  page.setDefaultTimeout(30_000);
 
   try {
-    await page.goto(BASE_URL, { waitUntil: "networkidle" });
-    await page.getByText("THE EMOTION SPECTRUM").waitFor();
-    await page.getByRole("button", { name: /Power On/ }).waitFor();
+    console.log("Loading application…");
+    await page.goto(BASE_URL, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.getByText("THE EMOTION SPECTRUM").waitFor({ timeout: 30_000 });
+    await page.getByRole("button", { name: /Power On/ }).waitFor({ timeout: 30_000 });
 
     // Audio gate: the browser requires a user gesture before AudioContext can run.
-    await page.getByRole("button", { name: /Power On/ }).click();
+    console.log("Powering on the audio engine…");
+    await page.getByRole("button", { name: /Power On/ }).click({ timeout: 30_000 });
 
     // Ribbon + drone latch: sustained voices make the visualizer meaningfully live.
-    await page.getByRole("button", { name: /Drone/ }).click();
+    console.log("Capturing ribbon drone state…");
+    await page.getByRole("button", { name: /Drone/ }).first().click({ timeout: 30_000 });
     for (const index of [0, 8, 12, 21]) {
-      await page.locator("[data-cellkey]").nth(index).click();
+      await page.locator("[data-cellkey]").nth(index).click({ timeout: 30_000 });
       await sleep(80);
     }
     await sleep(800);
@@ -96,7 +104,8 @@ async function main() {
     });
 
     // Theremin: hold and sweep right across the spectrum to freeze a live glide.
-    await page.getByRole("button", { name: /Theremin/ }).click();
+    console.log("Capturing theremin sweep state…");
+    await page.getByRole("button", { name: /Theremin/ }).click({ timeout: 30_000 });
     const ribbon = page.locator(".spectrum-scroll");
     const box = await ribbon.boundingBox();
     if (!box) throw new Error("Ribbon container not found");
@@ -111,13 +120,14 @@ async function main() {
     await page.mouse.up();
 
     // Arp detail: back in ribbon mode, latch a small set and let the sequencer run.
-    await page.getByRole("button", { name: /Ribbon/ }).click();
-    await page.getByRole("button", { name: /Drone/ }).click();
+    console.log("Capturing arpeggiator state…");
+    await page.getByRole("button", { name: /Ribbon/ }).click({ timeout: 30_000 });
+    await page.getByRole("button", { name: /Drone/ }).first().click({ timeout: 30_000 });
     for (const index of [3, 10, 17, 27]) {
-      await page.locator("[data-cellkey]").nth(index).click();
+      await page.locator("[data-cellkey]").nth(index).click({ timeout: 30_000 });
       await sleep(60);
     }
-    await page.getByRole("button", { name: /Arp/ }).click();
+    await page.getByRole("button", { name: /Arp/ }).click({ timeout: 30_000 });
     await sleep(900);
     await page.screenshot({
       path: path.join(IMAGES_DIR, "project-detail.png"),
@@ -125,10 +135,22 @@ async function main() {
     });
 
     // Social preview, built from the real preview screenshot.
+    console.log("Rendering social preview…");
     await createSocialPreview(page);
+    console.log("Screenshots complete.");
   } finally {
     await browser.close();
-    if (server) server.kill("SIGTERM");
+    if (server) {
+      if (server.pid && process.platform !== "win32") {
+        try {
+          process.kill(-server.pid, "SIGTERM");
+        } catch {
+          server.kill("SIGTERM");
+        }
+      } else {
+        server.kill("SIGTERM");
+      }
+    }
   }
 }
 
