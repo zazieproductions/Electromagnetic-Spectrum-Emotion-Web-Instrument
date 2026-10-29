@@ -49,6 +49,8 @@ The deployment path is configured for GitHub Pages; the production build deploys
 - **Drone latch:** click emotions in ribbon mode to hold them as sustained voices.
 - **Arpeggiator:** sequence latched notes with a rate knob (approx. 90–450 ms per step).
 - **Per-band timbre:** each band defines oscillator stack, detune, lowpass cutoff, resonance, space send, attack, and release.
+- **Extended voice layers:** every band also maps a sub-oscillator, a bandpass noise layer, FM modulation, a pitch-vibrato LFO, a filter envelope, and a stereo spread — deep and slow at the radio end, glitchy and wide at gamma.
+- **Audio-reactive aurora field:** a full-screen layer of drifting motes and an accent wash behind the interface that swell, bloom and accelerate with the live analyser energy.
 - **Lab control deck:** Master, Reverb, Delay, Drive, plus Glide (Theremin) or Arp Rate (Ribbon).
 - **Realtime audiovisualiser:** analyser data drawn as a mirrored frequency aurora and oscilloscope waveform on Canvas 2D.
 - **Panic button:** immediately silences all voices.

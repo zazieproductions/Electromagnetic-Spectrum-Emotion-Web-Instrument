@@ -2,8 +2,19 @@ import type { Cell } from "./spectrum";
 
 // A single sounding voice built from stacked detuned oscillators through
 // its own filter + ADSR gain, with parallel sends to delay and reverb buses.
+// Bands can extend the stack with a sub-oscillator, bandpass noise, FM
+// modulation, a vibrato LFO, a filter envelope and stereo spread.
 type Voice = {
   oscs: OscillatorNode[];
+  // Sub layer (one octave below); kept out of `oscs` so theremin glide can
+  // retune it to half the target frequency.
+  sub: OscillatorNode | null;
+  // FM modulator sweeping `oscs` frequency; retuned on theremin glide.
+  fmOsc: OscillatorNode | null;
+  fmRatio: number;
+  // Extra scheduled sources that must be stopped with the voice
+  // (noise buffer sources, LFO / FM modulator oscillators).
+  extras: AudioScheduledSourceNode[];
   gain: GainNode;
   filter: BiquadFilterNode;
   cell: Cell;
@@ -26,6 +37,8 @@ export class EmotionSynth {
   private compressor!: DynamicsCompressorNode;
   private shaper!: WaveShaperNode;
   private dryGain!: GainNode;
+  // Shared looping white-noise buffer for the bands' noise layers.
+  private noiseBuffer!: AudioBuffer;
 
   private reverbConv!: ConvolverNode;
   private reverbSend!: GainNode;
@@ -63,6 +76,12 @@ export class EmotionSynth {
         .webkitAudioContext;
     const ctx = new Ctor();
     this.ctx = ctx;
+
+    // Shared white-noise buffer (2s) reused by every voice's noise layer.
+    const noiseLen = ctx.sampleRate * 2;
+    this.noiseBuffer = ctx.createBuffer(1, noiseLen, ctx.sampleRate);
+    const noiseData = this.noiseBuffer.getChannelData(0);
+    for (let i = 0; i < noiseLen; i++) noiseData[i] = Math.random() * 2 - 1;
 
     // --- master chain ---
     this.shaper = ctx.createWaveShaper();
@@ -176,6 +195,32 @@ export class EmotionSynth {
     gain.gain.value = 0;
 
     const oscs: OscillatorNode[] = [];
+    const extras: AudioScheduledSourceNode[] = [];
+
+    // Shared vibrato LFO (cents on detune) across every oscillator layer.
+    let lfoGain: GainNode | null = null;
+    if (t.lfoRate && t.lfoDepth) {
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = t.lfoRate;
+      lfoGain = ctx.createGain();
+      lfoGain.gain.value = t.lfoDepth;
+      lfo.connect(lfoGain);
+      extras.push(lfo);
+    }
+
+    // Shared FM modulator sweeping each layer's frequency AudioParam.
+    let fmOsc: OscillatorNode | null = null;
+    let fmGain: GainNode | null = null;
+    const fmRatio = t.fmRatio ?? 0;
+    if (t.fm && fmRatio) {
+      fmOsc = ctx.createOscillator();
+      fmOsc.frequency.value = freq * fmRatio;
+      fmGain = ctx.createGain();
+      fmGain.gain.value = t.fm;
+      fmOsc.connect(fmGain);
+      extras.push(fmOsc);
+    }
+
     const layers = t.waves.length;
     t.waves.forEach((w, i) => {
       const osc = ctx.createOscillator();
@@ -184,16 +229,60 @@ export class EmotionSynth {
       // Symmetric detune spread across layers.
       const spread = layers > 1 ? (i / (layers - 1) - 0.5) * 2 : 0;
       osc.detune.value = spread * t.detune;
+
+      if (lfoGain) lfoGain.connect(osc.detune);
+      if (fmGain) fmGain.connect(osc.frequency);
+
       const layerGain = ctx.createGain();
       layerGain.gain.value = 1 / layers;
-      osc.connect(layerGain);
-      layerGain.connect(filter);
+
+      if (t.spread && layers > 1) {
+        // Pan the layers outward for a wider stereo image.
+        const panner = ctx.createStereoPanner();
+        panner.pan.value = (i / (layers - 1) - 0.5) * 2 * t.spread;
+        osc.connect(layerGain);
+        layerGain.connect(panner);
+        panner.connect(filter);
+      } else {
+        osc.connect(layerGain);
+        layerGain.connect(filter);
+      }
       oscs.push(osc);
     });
 
+    // Sub-oscillator: a sine one octave below the note, mixed at `sub` gain.
+    let sub: OscillatorNode | null = null;
+    if (t.sub) {
+      sub = ctx.createOscillator();
+      sub.type = "sine";
+      sub.frequency.value = freq / 2;
+      const subGain = ctx.createGain();
+      subGain.gain.value = t.sub;
+      sub.connect(subGain);
+      subGain.connect(filter);
+    }
+
+    // Bandpass noise layer breathing underneath the tone.
+    if (t.noise) {
+      const noise = ctx.createBufferSource();
+      noise.buffer = this.noiseBuffer;
+      noise.loop = true;
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = Math.min(12000, t.cutoff * 1.5);
+      bp.Q.value = 0.8;
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.value = t.noise * 0.5;
+      noise.connect(bp);
+      bp.connect(noiseGain);
+      noiseGain.connect(filter);
+      extras.push(noise);
+    }
+
+    // Voice → master routing: dry bus + effect sends scaled by the band's
+    // "space" character.
     filter.connect(gain);
     gain.connect(this.dryGain);
-    // Effect sends, scaled by the band's "space" character.
     const rSend = ctx.createGain();
     rSend.gain.value = t.space;
     gain.connect(rSend);
@@ -203,7 +292,25 @@ export class EmotionSynth {
     gain.connect(dSend);
     dSend.connect(this.delaySend);
 
-    return { oscs, gain, filter, cell, stopped: false, release: t.release };
+    return {
+      oscs,
+      sub,
+      fmOsc,
+      fmRatio,
+      extras,
+      gain,
+      filter,
+      cell,
+      stopped: false,
+      release: t.release,
+    };
+  }
+
+  // Start every source in a freshly built voice (layers + sub + extras).
+  private startVoiceSources(voice: Voice, when: number) {
+    voice.oscs.forEach((o) => o.start(when));
+    if (voice.sub) voice.sub.start(when);
+    voice.extras.forEach((source) => source.start(when));
   }
 
   noteOn(cell: Cell, velocity = 0.9) {
@@ -213,7 +320,7 @@ export class EmotionSynth {
     const now = ctx.currentTime;
     const t = cell.band.timbre;
     const voice = this.buildVoice(cell, cell.freq);
-    voice.oscs.forEach((o) => o.start(now));
+    this.startVoiceSources(voice, now);
 
     const peak = 0.32 * velocity;
     voice.gain.gain.cancelScheduledValues(now);
@@ -226,13 +333,26 @@ export class EmotionSynth {
       // Sustain slightly then let noteOff handle release; keep a soft plateau.
       voice.gain.gain.setTargetAtTime(peak * 0.75, now + t.attack, 0.4);
     }
-    // Gentle filter bloom.
+    // Filter envelope: bloom up past the base cutoff, then settle back.
     voice.filter.frequency.cancelScheduledValues(now);
-    voice.filter.frequency.setValueAtTime(t.cutoff * 0.6, now);
-    voice.filter.frequency.linearRampToValueAtTime(
-      t.cutoff,
-      now + t.attack + 0.15
-    );
+    if (t.filterEnv) {
+      voice.filter.frequency.setValueAtTime(t.cutoff, now);
+      voice.filter.frequency.exponentialRampToValueAtTime(
+        Math.min(18000, t.cutoff * (1 + t.filterEnv)),
+        now + t.attack + 0.01
+      );
+      voice.filter.frequency.setTargetAtTime(
+        t.cutoff,
+        now + t.attack + 0.01,
+        Math.max(0.12, t.attack * 2)
+      );
+    } else {
+      voice.filter.frequency.setValueAtTime(t.cutoff * 0.6, now);
+      voice.filter.frequency.linearRampToValueAtTime(
+        t.cutoff,
+        now + t.attack + 0.15
+      );
+    }
 
     this.voices.set(cell.key, voice);
   }
@@ -252,7 +372,16 @@ export class EmotionSynth {
     const cur = Math.max(0.0002, voice.gain.gain.value);
     voice.gain.gain.setValueAtTime(cur, now);
     voice.gain.gain.exponentialRampToValueAtTime(0.0001, now + rel);
-    voice.oscs.forEach((o) => o.stop(now + rel + 0.05));
+    const stop = now + rel + 0.05;
+    voice.oscs.forEach((o) => o.stop(stop));
+    if (voice.sub) voice.sub.stop(stop);
+    voice.extras.forEach((source) => {
+      try {
+        source.stop(stop);
+      } catch {
+        // Already stopped; stopping twice is harmless.
+      }
+    });
   }
 
   // Trigger a note and auto-release (used for keyboard taps / arpeggiator).
@@ -271,7 +400,7 @@ export class EmotionSynth {
     }
     const voice = this.buildVoice(cell, freq);
     const now = this.ctx.currentTime;
-    voice.oscs.forEach((o) => o.start(now));
+    this.startVoiceSources(voice, now);
     voice.gain.gain.setValueAtTime(0.0001, now);
     voice.gain.gain.exponentialRampToValueAtTime(0.26, now + 0.08);
     this.theremin = voice;
@@ -284,6 +413,21 @@ export class EmotionSynth {
     this.theremin.oscs.forEach((o) => {
       o.frequency.setTargetAtTime(freq, now, Math.max(0.005, g));
     });
+    // The sub layer tracks an octave below; the FM modulator keeps its ratio.
+    if (this.theremin.sub) {
+      this.theremin.sub.frequency.setTargetAtTime(
+        freq / 2,
+        now,
+        Math.max(0.005, g)
+      );
+    }
+    if (this.theremin.fmOsc && this.theremin.fmRatio) {
+      this.theremin.fmOsc.frequency.setTargetAtTime(
+        freq * this.theremin.fmRatio,
+        now,
+        Math.max(0.005, g)
+      );
+    }
     if (cell) {
       const t = cell.band.timbre;
       this.theremin.filter.frequency.setTargetAtTime(t.cutoff, now, 0.08);

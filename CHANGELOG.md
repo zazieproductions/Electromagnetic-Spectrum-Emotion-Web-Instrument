@@ -2,6 +2,19 @@
 
 All notable changes to The Emotion Spectrum are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/) as a convention, with a small-studio level of ceremony.
 
+## [Unreleased]
+
+### Added
+
+- Extended per-band voice architecture: each band's timbre now also maps a sub-oscillator, a bandpass noise layer, FM modulation (ratio + depth), a pitch-vibrato LFO, a filter envelope with an overshoot-and-settle bloom, and a stereo spread across the oscillator layers. Radio sits deep, wide and barely breathing; gamma is bright, modulated and near-instant.
+- Audio-reactive aurora field (`AuroraField`) behind the interface: drifting motes and an accent wash driven by the shared analyser's low- and mid-band energy, tinted by the active band's colour.
+- Shared looping white-noise buffer created once at audio-context start.
+
+### Changed
+
+- Voice lifecycle now starts and stops every source (sub, LFO, FM modulator, noise) with the voice; the theremin glide retunes the sub layer an octave below and keeps the FM modulator's ratio.
+- Filter bloom is band-specific: bands with a `filterEnv` overshoot past their base cutoff and settle back, others keep the original linear bloom.
+
 ## [1.0.0] - 2026-09-03
 
 ### Added
