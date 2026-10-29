@@ -17,6 +17,23 @@ export type Timbre = {
   // Attack / release feel in seconds.
   attack: number;
   release: number;
+  // --- extended voice layers (all optional; the engine skips absent ones) ---
+  // Sub-oscillator gain 0..1: a sine one octave below the note.
+  sub?: number;
+  // Bandpass noise layer 0..1 mixed in under the tone.
+  noise?: number;
+  // Frequency modulation: a modulator at (freq * fmRatio) sweeping the
+  // oscillator frequencies with a depth of `fm` Hz.
+  fm?: number;
+  fmRatio?: number;
+  // Pitch vibrato: LFO rate in Hz, depth in cents on detune.
+  lfoRate?: number;
+  lfoDepth?: number;
+  // Filter envelope: on attack the cutoff overshoots to cutoff * (1 + env)
+  // then settles back to the base cutoff — a pluck-like bloom.
+  filterEnv?: number;
+  // Stereo spread 0..1 applied across the oscillator layers.
+  spread?: number;
 };
 
 export type Emotion = {
@@ -61,6 +78,12 @@ export const BANDS: Band[] = [
       space: 0.85,
       attack: 0.5,
       release: 2.6,
+      sub: 0.6,
+      noise: 0.04,
+      lfoRate: 0.2,
+      lfoDepth: 4,
+      filterEnv: 0.4,
+      spread: 0.3,
     },
     emotions: [
       { name: "Stillness", semitone: PENTA[0] },
@@ -87,6 +110,14 @@ export const BANDS: Band[] = [
       space: 0.7,
       attack: 0.35,
       release: 2.0,
+      sub: 0.45,
+      noise: 0.05,
+      fm: 2.5,
+      fmRatio: 2,
+      lfoRate: 0.35,
+      lfoDepth: 5,
+      filterEnv: 0.5,
+      spread: 0.4,
     },
     emotions: [
       { name: "Comfort", semitone: PENTA[0] },
@@ -113,6 +144,14 @@ export const BANDS: Band[] = [
       space: 0.55,
       attack: 0.18,
       release: 1.6,
+      sub: 0.3,
+      noise: 0.06,
+      fm: 4,
+      fmRatio: 1.5,
+      lfoRate: 0.6,
+      lfoDepth: 6,
+      filterEnv: 0.7,
+      spread: 0.5,
     },
     emotions: [
       { name: "Tenderness", semitone: PENTA[0] },
@@ -139,6 +178,14 @@ export const BANDS: Band[] = [
       space: 0.4,
       attack: 0.05,
       release: 1.1,
+      sub: 0.2,
+      noise: 0.08,
+      fm: 8,
+      fmRatio: 2,
+      lfoRate: 2,
+      lfoDepth: 6,
+      filterEnv: 0.9,
+      spread: 0.6,
     },
     emotions: [
       { name: "Desire", semitone: PENTA[0] },
@@ -165,6 +212,14 @@ export const BANDS: Band[] = [
       space: 0.42,
       attack: 0.04,
       release: 1.0,
+      sub: 0.15,
+      noise: 0.09,
+      fm: 6,
+      fmRatio: 3,
+      lfoRate: 3,
+      lfoDepth: 8,
+      filterEnv: 1.0,
+      spread: 0.65,
     },
     emotions: [
       { name: "Excitement", semitone: PENTA[0] },
@@ -191,6 +246,14 @@ export const BANDS: Band[] = [
       space: 0.4,
       attack: 0.03,
       release: 0.9,
+      sub: 0.1,
+      noise: 0.1,
+      fm: 10,
+      fmRatio: 2,
+      lfoRate: 4,
+      lfoDepth: 9,
+      filterEnv: 1.2,
+      spread: 0.7,
     },
     emotions: [
       { name: "Joy", semitone: PENTA[0] },
@@ -217,6 +280,14 @@ export const BANDS: Band[] = [
       space: 0.5,
       attack: 0.06,
       release: 1.1,
+      sub: 0.12,
+      noise: 0.06,
+      fm: 5,
+      fmRatio: 2,
+      lfoRate: 1.5,
+      lfoDepth: 5,
+      filterEnv: 0.6,
+      spread: 0.55,
     },
     emotions: [
       { name: "Balance", semitone: PENTA[0] },
@@ -243,6 +314,14 @@ export const BANDS: Band[] = [
       space: 0.62,
       attack: 0.12,
       release: 1.6,
+      sub: 0.3,
+      noise: 0.05,
+      fm: 3,
+      fmRatio: 1.5,
+      lfoRate: 0.8,
+      lfoDepth: 7,
+      filterEnv: 0.55,
+      spread: 0.6,
     },
     emotions: [
       { name: "Melancholy", semitone: PENTA[0] },
@@ -269,6 +348,14 @@ export const BANDS: Band[] = [
       space: 0.66,
       attack: 0.1,
       release: 1.5,
+      sub: 0.2,
+      noise: 0.07,
+      fm: 7,
+      fmRatio: 2.5,
+      lfoRate: 2.5,
+      lfoDepth: 8,
+      filterEnv: 0.95,
+      spread: 0.7,
     },
     emotions: [
       { name: "Awe", semitone: PENTA[0] },
@@ -295,6 +382,14 @@ export const BANDS: Band[] = [
       space: 0.5,
       attack: 0.02,
       release: 0.8,
+      sub: 0.12,
+      noise: 0.1,
+      fm: 14,
+      fmRatio: 3,
+      lfoRate: 5,
+      lfoDepth: 10,
+      filterEnv: 1.3,
+      spread: 0.8,
     },
     emotions: [
       { name: "Anxiety", semitone: PENTA[0] },
@@ -321,6 +416,14 @@ export const BANDS: Band[] = [
       space: 0.58,
       attack: 0.015,
       release: 0.7,
+      sub: 0.08,
+      noise: 0.12,
+      fm: 18,
+      fmRatio: 3.5,
+      lfoRate: 6,
+      lfoDepth: 12,
+      filterEnv: 1.5,
+      spread: 0.85,
     },
     emotions: [
       { name: "Fear", semitone: PENTA[0] },
@@ -347,6 +450,14 @@ export const BANDS: Band[] = [
       space: 0.72,
       attack: 0.01,
       release: 0.9,
+      sub: 0.1,
+      noise: 0.14,
+      fm: 22,
+      fmRatio: 4,
+      lfoRate: 7,
+      lfoDepth: 14,
+      filterEnv: 1.8,
+      spread: 0.9,
     },
     emotions: [
       { name: "Ecstasy", semitone: PENTA[0] },

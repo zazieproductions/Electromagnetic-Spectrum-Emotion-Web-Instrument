@@ -1,3 +1,4 @@
+import AuroraField from "./components/AuroraField";
 import Background from "./components/Background";
 import ControlDeck from "./components/ControlDeck";
 import Header from "./components/Header";
@@ -12,6 +13,7 @@ export default function App() {
   return (
     <div className="min-h-screen w-full relative flex flex-col">
       <Background />
+      <AuroraField accent={controller.accent} />
 
       <Header
         accent={controller.accent}
